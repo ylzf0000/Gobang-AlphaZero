@@ -7,11 +7,6 @@ from .env import *
 
 
 class GobangEnv(BoardGameEnv):
-    def render(self, mode='human'):
-        render_characters = '+ox'
-        rd = {EMPTY: '-', BLACK: 'o', WHITE: 'x'}
-        for t in self.board:
-            print(''.join([rd[pc] + ' ' for pc in t]))
 
     def __init__(self, board_shape=15, target_length=5,
                  illegal_action_mode='pass', render_characters='+ox'):
@@ -37,3 +32,9 @@ class GobangEnv(BoardGameEnv):
             if self.has_valid((board, player)):
                 return None
         return 0
+
+    def render(self, mode='human'):
+        render_characters = '+ox'
+        rd = {EMPTY: '-', BLACK: 'o', WHITE: 'x'}
+        for t in self.board:
+            print(''.join([rd[pc] + ' ' for pc in t]))

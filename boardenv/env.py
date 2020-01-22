@@ -288,6 +288,7 @@ class BoardGameEnv(gym.Env):
         """
         See gym.Env.render().
         """
+        pass
         # outfile = StringIO() if mode == 'ansi' else sys.stdout
         # s = strfboard(self.board, self.render_characters)
         # outfile.write(s)

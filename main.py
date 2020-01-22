@@ -1,9 +1,11 @@
 # coding=utf-8
 import argparse
+import tensorflow as tf
 from agent import *
+import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
-if __name__ == '__main__':
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+def main():
     # 解析参数
     parser = argparse.ArgumentParser(description='训练AI或与AI对弈')
     group1 = parser.add_mutually_exclusive_group()
@@ -22,3 +24,11 @@ if __name__ == '__main__':
         train(args.cmd)
     elif args.play:
         play()
+
+
+if __name__ == '__main__':
+    # with tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
+    #         device_count={'CPU': 4},
+    #         inter_op_parallelism_threads=1,
+    #         intra_op_parallelism_threads=1)) as sess:
+    main()

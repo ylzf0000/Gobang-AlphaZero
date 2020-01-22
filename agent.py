@@ -68,7 +68,8 @@ class AlphaZeroAgent:
         elif self.net_scale == 'small':
             self.model_filename = './gobang_model_small.h5'
         if os.path.isfile(self.model_filename):
-            self.net = keras.models.load_model(self.model_filename)
+            self.net = keras.models.load_model(self.model_filename, custom_objects={
+                'categorical_crossentropy_2d': self.categorical_crossentropy_2d})
         else:
             self.net = self.build_network(**kwargs)
         self.reset_mcts()
@@ -76,6 +77,11 @@ class AlphaZeroAgent:
         self.c_init = c_init  # PUCT 系数
         self.c_base = c_base  # PUCT 系数
         self.prior_exploration_fraction = prior_exploration_fraction
+
+    def categorical_crossentropy_2d(self, y_true, y_pred):
+        labels = tf.reshape(y_true, [-1, self.board.size])
+        preds = tf.reshape(y_pred, [-1, self.board.size])
+        return keras.losses.categorical_crossentropy(labels, preds)
 
     def build_network(self, conv_filters, residual_filters, policy_filters,
                       learning_rate=0.001, regularizer=keras.regularizers.l2(1e-4)):
@@ -118,12 +124,7 @@ class AlphaZeroAgent:
 
         model = keras.Model(inputs=inputs, outputs=[probs, vs])
 
-        def categorical_crossentropy_2d(y_true, y_pred):
-            labels = tf.reshape(y_true, [-1, self.board.size])
-            preds = tf.reshape(y_pred, [-1, self.board.size])
-            return keras.losses.categorical_crossentropy(labels, preds)
-
-        loss = [categorical_crossentropy_2d, keras.losses.MSE]
+        loss = [self.categorical_crossentropy_2d, keras.losses.MSE]
         optimizer = keras.optimizers.Adam(learning_rate)
         model.compile(loss=loss, optimizer=optimizer)
         return model
@@ -219,8 +220,7 @@ class AlphaZeroAgent:
 
 
 @measure_time()
-def self_play(env, agent, return_trajectory=False, verbose=False):
-    # print(sys._getframe().f_code.co_name)
+def self_play(env, agent, iteration, episode, return_trajectory=False, verbose=False):
     trajectory = [] if return_trajectory else None
     observation = env.reset()
     winner = None
@@ -229,14 +229,14 @@ def self_play(env, agent, return_trajectory=False, verbose=False):
         action, prob = agent.decide(observation, return_prob=True)
         if verbose:
             env.render()
-            logging.info(f'第{step}步，玩家{player2str(player)}，动作{action}')
+            logging.info(f'训练{iteration}，回合{episode}，第{step}步，玩家{player2str(player)}，动作{action}')
         observation, winner, done, _ = env.step(action)
         if return_trajectory:
             trajectory.append((player, board, prob))
         if done:
             if verbose:
                 env.render()
-                logging.info(f'对弈了{step}步, 赢家为{player2str(winner)}')
+                logging.info(f'训练{iteration}，回合{episode}，对弈了{step}步, 赢家为{player2str(winner)}')
             break
     if return_trajectory:
         df_trajectory = pd.DataFrame(trajectory,
@@ -298,6 +298,28 @@ def net_args(scale):
     return sim_count, net_kwargs, net_scale
 
 
+def flip_trajectory(df_trajectory: pd.DataFrame):
+    raw_trajectory = list(df_trajectory.values.tolist())
+    winner = raw_trajectory[0][3]
+    trajectories = [[] for _ in range(8)]
+    dfs_trajectory = []
+    for row in raw_trajectory:
+        player = row[0]
+        board = row[1]
+        prob = row[2]
+        # winner = row[3]
+        boards = extend_board(board)
+        probs = extend_board(prob)
+        for i in range(len(boards)):
+            trajectories[i].append((player, boards[i], probs[i]))
+    for trajectory in trajectories:
+        df = pd.DataFrame(trajectory,
+                                     columns=['player', 'board', 'prob'])
+        df['winner'] = winner
+        dfs_trajectory.append(df)
+    return dfs_trajectory
+
+
 def train(cmd, scale='small'):
     print(sys._getframe().f_code.co_name)
     train_iterations, train_episodes_per_iteration, \
@@ -311,11 +333,12 @@ def train(cmd, scale='small'):
         dfs_trajectory = []
         for episode in range(train_episodes_per_iteration):
             logging.info(f'训练 {iteration} 回合 {episode}开始')
-            df_trajectory = self_play(env, agent,
+            df_trajectory = self_play(env, agent, iteration, episode,
                                       return_trajectory=True, verbose=True)
-            logging.info('训练 {} 回合 {}: 收集到 {} 条经验'.format(
-                iteration, episode, len(df_trajectory)))
-            dfs_trajectory.append(df_trajectory)
+
+            logging.info(f'训练 {iteration} 回合 {episode}: 收集到 {len(df_trajectory)} 条经验')
+            dfs_trajectory += flip_trajectory(df_trajectory)
+            # dfs_trajectory.append(df_trajectory)
 
         # 利用经验进行学习
         agent.learn(dfs_trajectory)
@@ -323,7 +346,7 @@ def train(cmd, scale='small'):
         logging.info('训练 {}: 学习完成'.format(iteration))
 
         # 演示训练结果
-        self_play(env, agent, verbose=True)
+        # self_play(env, agent, iteration, episode, verbose=True)
 
 
 def play(scale='small'):
