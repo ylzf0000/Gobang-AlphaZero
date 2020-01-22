@@ -219,6 +219,28 @@ class AlphaZeroAgent:
         return v
 
 
+def flip_trajectory(df_trajectory: pd.DataFrame):
+    raw_trajectory = list(df_trajectory.values.tolist())
+    winner = raw_trajectory[0][3]
+    trajectories = [[] for _ in range(8)]
+    dfs_trajectory = []
+    for row in raw_trajectory:
+        player = row[0]
+        board = row[1]
+        prob = row[2]
+        # winner = row[3]
+        boards = extend_board(board)
+        probs = extend_board(prob)
+        for i in range(len(boards)):
+            trajectories[i].append((player, boards[i], probs[i]))
+    for trajectory in trajectories:
+        df = pd.DataFrame(trajectory,
+                          columns=['player', 'board', 'prob'])
+        df['winner'] = winner
+        dfs_trajectory.append(df)
+    return dfs_trajectory
+
+
 @measure_time()
 def self_play(env, agent, iteration, episode, return_trajectory=False, verbose=False):
     trajectory = [] if return_trajectory else None
@@ -296,28 +318,6 @@ def net_args(scale):
         net_kwargs['policy_filters'] = [256, ]
         net_scale = 'small'
     return sim_count, net_kwargs, net_scale
-
-
-def flip_trajectory(df_trajectory: pd.DataFrame):
-    raw_trajectory = list(df_trajectory.values.tolist())
-    winner = raw_trajectory[0][3]
-    trajectories = [[] for _ in range(8)]
-    dfs_trajectory = []
-    for row in raw_trajectory:
-        player = row[0]
-        board = row[1]
-        prob = row[2]
-        # winner = row[3]
-        boards = extend_board(board)
-        probs = extend_board(prob)
-        for i in range(len(boards)):
-            trajectories[i].append((player, boards[i], probs[i]))
-    for trajectory in trajectories:
-        df = pd.DataFrame(trajectory,
-                                     columns=['player', 'board', 'prob'])
-        df['winner'] = winner
-        dfs_trajectory.append(df)
-    return dfs_trajectory
 
 
 def train(cmd, scale='small'):
