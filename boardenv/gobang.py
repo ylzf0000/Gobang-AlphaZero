@@ -8,7 +8,7 @@ from .env import *
 
 class GobangEnv(BoardGameEnv):
 
-    def __init__(self, board_shape=15, target_length=5,
+    def __init__(self, board_shape, target_length,
                  illegal_action_mode='pass', render_characters='+ox'):
         super().__init__(board_shape=board_shape,
                          illegal_action_mode=illegal_action_mode,
@@ -26,7 +26,7 @@ class GobangEnv(BoardGameEnv):
                             if not is_index(board, (xx, yy)) or board[xx, yy] != player:
                                 break
                             xx, yy = xx + dx, yy + dy
-                            if count >= self.target_length:
+                            if count + 1 >= self.target_length:
                                 return player
         for player in [BLACK, WHITE]:
             if self.has_valid((board, player)):

@@ -314,7 +314,7 @@ def net_args(scale):
         sim_count = 200
         net_kwargs = {}
         net_kwargs['conv_filters'] = [256, ]
-        net_kwargs['residual_filters'] = [[256, 256], ] * 7
+        net_kwargs['residual_filters'] = [[256, 256], ]
         net_kwargs['policy_filters'] = [256, ]
         net_scale = 'small'
     return sim_count, net_kwargs, net_scale
@@ -332,18 +332,18 @@ def train(cmd, scale='small'):
         # 自我对弈
         dfs_trajectory = []
         for episode in range(train_episodes_per_iteration):
-            logging.info(f'训练 {iteration} 回合 {episode}开始')
+            logging.info(f'训练{iteration}，回合{episode}开始')
             df_trajectory = self_play(env, agent, iteration, episode,
                                       return_trajectory=True, verbose=True)
 
-            logging.info(f'训练 {iteration} 回合 {episode}: 收集到 {len(df_trajectory)} 条经验')
+            logging.info(f'训练{iteration}，回合，{episode}，收集到{len(df_trajectory)}条经验')
             dfs_trajectory += flip_trajectory(df_trajectory)
             # dfs_trajectory.append(df_trajectory)
 
         # 利用经验进行学习
         agent.learn(dfs_trajectory)
         keras.models.save_model(agent.net, agent.model_filename)
-        logging.info('训练 {}: 学习完成'.format(iteration))
+        logging.info(f'训练{iteration}: 学习完成')
 
         # 演示训练结果
         # self_play(env, agent, iteration, episode, verbose=True)
