@@ -63,10 +63,11 @@ class AlphaZeroAgent:
         self.batches = batches
         self.batch_size = batch_size
         self.net_scale = net_scale
-        if self.net_scale == 'big':
-            self.model_filename = './gobang_model_big.h5'
-        elif self.net_scale == 'small':
-            self.model_filename = './gobang_model_small.h5'
+        self.model_filename = f'./gobang_model_{self.net_scale}.h5'
+        # if self.net_scale == 'big':
+        #     self.model_filename = './gobang_model_big.h5'
+        # elif self.net_scale == 'small':
+        #     self.model_filename = './gobang_model_small.h5'
         if os.path.isfile(self.model_filename):
             self.net = keras.models.load_model(self.model_filename, custom_objects={
                 'categorical_crossentropy_2d': self.categorical_crossentropy_2d})
@@ -270,57 +271,64 @@ def self_play(env, agent, iteration, episode, return_trajectory=False, verbose=F
 
 
 def train_args(scale):
-    train_iterations = 0
-    train_episodes_per_iteration = 0
-    batches = 0
-    batch_size = 0
-    if scale == 'big':
-        """
-        AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
-        """
-        train_iterations = 700000  # 训练迭代次数
-        train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
-        batches = 10  # 每回合进行几次批学习
-        batch_size = 4096  # 批学习的批大小
-    elif scale == 'small':
-        """
-        小规模参数，用来初步求解比较小的问题（如井字棋）
-        """
-        train_iterations = 100
-        train_episodes_per_iteration = 100
-        batches = 2
-        batch_size = 64
+    # train_iterations = 0
+    # train_episodes_per_iteration = 0
+    # batches = 0
+    # batch_size = 0
+    train_iterations = 700000  # 训练迭代次数
+    train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
+    batches = 10  # 每回合进行几次批学习
+    batch_size = 4096  # 批学习的批大小
+    # if scale == 'big':
+    #     """
+    #     AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
+    #     """
+    #     train_iterations = 700000  # 训练迭代次数
+    #     train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
+    #     batches = 10  # 每回合进行几次批学习
+    #     batch_size = 4096  # 批学习的批大小
+    # elif scale == 'small':
+    #     """
+    #     小规模参数，用来初步求解比较小的问题（如井字棋）
+    #     """
+    #     train_iterations = 100
+    #     train_episodes_per_iteration = 100
+    #     batches = 2
+    #     batch_size = 64
     return train_iterations, train_episodes_per_iteration, batches, batch_size
 
 
 def net_args(scale):
-    sim_count = 0
     net_kwargs = {}
-    net_scale = ''
-    if scale == 'big':
-        """
-        AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
-        """
-        sim_count = 800  # MCTS需要的计数
-        net_kwargs = {}
-        net_kwargs['conv_filters'] = [256, ]
-        net_kwargs['residual_filters'] = [[256, 256], ] * 19
-        net_kwargs['policy_filters'] = [256, ]
-        net_scale = 'big'
-    elif scale == 'small':
-        """
-        小规模参数，用来初步求解比较小的问题（如井字棋）
-        """
-        sim_count = 200
-        net_kwargs = {}
-        net_kwargs['conv_filters'] = [256, ]
-        net_kwargs['residual_filters'] = [[256, 256], ]
-        net_kwargs['policy_filters'] = [256, ]
-        net_scale = 'small'
-    return sim_count, net_kwargs, net_scale
+    sim_count = 800  # MCTS需要的计数
+    net_kwargs = {}
+    net_kwargs['conv_filters'] = [256, ]
+    net_kwargs['residual_filters'] = [[256, 256], ] * scale
+    net_kwargs['policy_filters'] = [256, ]
+    # if scale == 'big':
+    #     """
+    #     AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
+    #     """
+    #     sim_count = 800  # MCTS需要的计数
+    #     net_kwargs = {}
+    #     net_kwargs['conv_filters'] = [256, ]
+    #     net_kwargs['residual_filters'] = [[256, 256], ] * 19
+    #     net_kwargs['policy_filters'] = [256, ]
+    #     net_scale = 'big'
+    # elif scale == 'small':
+    #     """
+    #     小规模参数，用来初步求解比较小的问题（如井字棋）
+    #     """
+    #     sim_count = 200
+    #     net_kwargs = {}
+    #     net_kwargs['conv_filters'] = [256, ]
+    #     net_kwargs['residual_filters'] = [[256, 256], ]
+    #     net_kwargs['policy_filters'] = [256, ]
+    #     net_scale = 'small'
+    return sim_count, net_kwargs, scale
 
 
-def train(cmd, scale='small'):
+def train(cmd, scale=7):
     print(sys._getframe().f_code.co_name)
     train_iterations, train_episodes_per_iteration, \
     batches, batch_size = train_args(scale)
@@ -349,7 +357,7 @@ def train(cmd, scale='small'):
         # self_play(env, agent, iteration, episode, verbose=True)
 
 
-def play(scale='small'):
+def play(scale=7):
     print(sys._getframe().f_code.co_name)
     train_iterations, train_episodes_per_iteration, \
     batches, batch_size = train_args(scale)

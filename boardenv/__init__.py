@@ -29,8 +29,8 @@ register(
     id='Gobang-v0',
     entry_point='boardenv:GobangEnv',
     kwargs={
-        'board_shape': 7,
-        'target_length': 3,
+        'board_shape': 8,
+        'target_length': 4,
     }
 )
 
