@@ -1,6 +1,5 @@
 # coding=utf-8
 import argparse
-import tensorflow as tf
 from agent import *
 import os
 
@@ -29,4 +28,36 @@ def main():
 
 
 if __name__ == '__main__':
+    # from boardenv import env
+    #
+    # board = np.array([i for i in range(1, 82)]).reshape((9, 9))
+    # print(board)
+    # loc = (3, 7)
+    # print(board[loc])
+    # boards = extend_board(board)
+    # locs = extend_location(loc, board.shape)
+    # for i in range(len(boards)):
+    #     board = boards[i]
+    #     loc = tuple(locs[i])
+    #     print(board[loc])
+    # for i in range(len(boards)):
+    #     board = boards[i]
+    #     for y in range(board.shape[0]):
+    #         ok = 0
+    #         for x in range(board.shape[1]):
+    #             pc = board[y, x]
+    #             if pc == 35:
+    #                 print(y, x)
+    #                 ok = 1
+    #                 break
+    #         if ok == 1:
+    #             break
+    # print(boards)
+    # print(locs)
+    import tensorflow as tf
+    from keras.backend.tensorflow_backend import set_session
+
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    set_session(tf.Session(config=config))
     main()

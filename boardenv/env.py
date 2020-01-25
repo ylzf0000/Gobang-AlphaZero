@@ -56,8 +56,8 @@ def extend_location(location, shape):
     #                       np.rot90(board), np.rot90(board, k=2), np.rot90(board, k=3),
     #                       np.transpose(board), np.flipud(board),
     #                       np.rot90(np.flipud(board)), np.fliplr(board)])
-    locations = np.stack([(x, y), (y, w - x), (w - x, h - y), (h - y, x),
-                          (y, x), (x, h - y), (h - y, w - x), (w - x, y)])
+    locations = np.stack([(x, y), (h - y, x), (w - x, h - y), (y, w - x),
+                          (y, x), (w - x, y), (h - y, w - x), (x, h - y)])
     return locations
 
 
