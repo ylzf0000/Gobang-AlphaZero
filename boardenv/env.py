@@ -12,40 +12,22 @@ BLACK = 1
 WHITE = -1
 
 
-def strfboard(board, render_characters='+ox'):
+def strfboard(board, render_characters='-ox'):
     return ''.join([render_characters[p] for row in board for p in row])
 
 
 def player2str(player):
-    str = ''
-    if player == 1:
-        str = '黑方'
-    elif player == -1:
-        str = '白方'
-    else:
-        str = '无'
-    return str
+    player_str = ['无', '黑方', '白方']
+    return player_str[player]
 
 
 def is_index(board, location):
-    """
-    Check whether a location is a valid index of the board
-    
-    Parameters:
-    ----
-    board : np.array
-    location : np.array
-    
-    Returns
-    ----
-    is_index : bool
-    """
-    if len(location) != 2:
-        return False
-    x, y = location
-    return x in range(board.shape[0]) and y in range(board.shape[1])
+    assert len(location) == 2
+    y, x = location
+    return y in range(board.shape[0]) and x in range(board.shape[1])
 
 
+# 获取8个镜像棋盘
 def extend_board(board):
     """
     Get the rotations of the board.
@@ -73,8 +55,8 @@ class BoardGameEnv(gym.Env):
     RESIGN = np.array([-1, -1])
 
     def __init__(self, board_shape,
-                 illegal_action_mode='resign', render_characters='+ox',
-                 allow_pass=True):
+                 illegal_action_mode='resign', render_characters='-ox',
+                 allow_pass=False):
         """
         Greate a board game.
         
@@ -145,8 +127,8 @@ class BoardGameEnv(gym.Env):
         board, _ = state
         if not is_index(board, action):
             return False
-        x, y = action
-        return board[x, y] == EMPTY
+        y, x = action
+        return board[y, x] == EMPTY
 
     def get_valid(self, state):
         """
@@ -162,9 +144,9 @@ class BoardGameEnv(gym.Env):
         """
         board, _ = state
         valid = np.zeros_like(board, dtype=np.int8)
-        for x in range(board.shape[0]):
-            for y in range(board.shape[1]):
-                valid[x, y] = self.is_valid(state, np.array([x, y]))
+        for y in range(board.shape[0]):
+            for x in range(board.shape[1]):
+                valid[y, x] = (board[y, x] == EMPTY)
         return valid
 
     def has_valid(self, state):
@@ -180,10 +162,9 @@ class BoardGameEnv(gym.Env):
         has_valid : bool
         """
         board = state[0]
-        valid = np.zeros_like(board, dtype=np.int8)
-        for x in range(board.shape[0]):
-            for y in range(board.shape[1]):
-                if self.is_valid(state, np.array([x, y])):
+        for y in range(board.shape[0]):
+            for x in range(board.shape[1]):
+                if board[y, x] == EMPTY:
                     return True
         return False
 
@@ -227,10 +208,10 @@ class BoardGameEnv(gym.Env):
         ValueError : location in action is not valid
         """
         board, player = state
-        x, y = action
+        y, x = action
         if self.is_valid(state, action):
             board = copy.deepcopy(board)
-            board[x, y] = player
+            board[y, x] = player
         return board, -player
 
     def next_step(self, state, action):

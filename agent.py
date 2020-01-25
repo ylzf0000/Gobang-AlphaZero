@@ -1,3 +1,4 @@
+import collections
 import os
 import math
 import time
@@ -63,11 +64,12 @@ class AlphaZeroAgent:
         self.batches = batches
         self.batch_size = batch_size
         self.net_scale = net_scale
-        self.model_filename = f'./gobang_model_{self.net_scale}.h5'
-        # if self.net_scale == 'big':
-        #     self.model_filename = './gobang_model_big.h5'
-        # elif self.net_scale == 'small':
-        #     self.model_filename = './gobang_model_small.h5'
+        h = self.board.shape[0]
+        w = self.board.shape[1]
+        self.input_shape = (h, w, 4)
+        target_length = env.target_length
+        # self.model_filename = f'./gobang_model_{self.net_scale}.h5'
+        self.model_filename = f'./gobang_model_{w}_{h}_{target_length}.h5'
         if os.path.isfile(self.model_filename):
             self.net = keras.models.load_model(self.model_filename, custom_objects={
                 'categorical_crossentropy_2d': self.categorical_crossentropy_2d})
@@ -86,49 +88,76 @@ class AlphaZeroAgent:
 
     def build_network(self, conv_filters, residual_filters, policy_filters,
                       learning_rate=0.001, regularizer=keras.regularizers.l2(1e-4)):
-        # 公共部分
-        inputs = keras.Input(shape=self.board.shape)
-        x = keras.layers.Reshape(self.board.shape + (1,))(inputs)
-        for conv_filter in conv_filters:
-            z = keras.layers.Conv2D(conv_filter, 3, padding='same',
-                                    kernel_regularizer=regularizer,
-                                    bias_regularizer=regularizer)(x)
-            y = keras.layers.BatchNormalization()(z)
-            x = keras.layers.ReLU()(y)
-        for residual_filter in residual_filters:
-            x = residual(x, filters=residual_filter, regularizer=regularizer)
-        intermediates = x
-
-        # 概率部分
-        for policy_filter in policy_filters:
-            z = keras.layers.Conv2D(policy_filter, 3, padding='same',
-                                    kernel_regularizer=regularizer,
-                                    bias_regularizer=regularizer)(x)
-            y = keras.layers.BatchNormalization()(z)
-            x = keras.layers.ReLU()(y)
-        logits = keras.layers.Conv2D(1, 3, padding='same',
-                                     kernel_regularizer=regularizer, bias_regularizer=regularizer)(x)
-        flattens = keras.layers.Flatten()(logits)
-        softmaxs = keras.layers.Softmax()(flattens)
-        probs = keras.layers.Reshape(self.board.shape)(softmaxs)
-
-        # 价值部分
-        z = keras.layers.Conv2D(1, 3, padding='same',
-                                kernel_regularizer=regularizer,
-                                bias_regularizer=regularizer)(intermediates)
-        y = keras.layers.BatchNormalization()(z)
-        x = keras.layers.ReLU()(y)
-        flattens = keras.layers.Flatten()(x)
-        vs = keras.layers.Dense(1, activation=keras.activations.tanh,
-                                kernel_regularizer=regularizer,
-                                bias_regularizer=regularizer)(flattens)
-
+        net = inputs = keras.Input(shape=self.input_shape)
+        # conv layers
+        net = keras.layers.Conv2D(filters=32, kernel_size=(3, 3), padding="same", data_format="channels_first",
+                                  activation="relu", kernel_regularizer=regularizer)(net)
+        net = keras.layers.Conv2D(filters=64, kernel_size=(3, 3), padding="same", data_format="channels_first",
+                                  activation="relu", kernel_regularizer=regularizer)(net)
+        net = keras.layers.Conv2D(filters=128, kernel_size=(3, 3), padding="same", data_format="channels_first",
+                                  activation="relu", kernel_regularizer=regularizer)(net)
+        # action policy layers
+        policy_net = keras.layers.Conv2D(filters=4, kernel_size=(1, 1), data_format="channels_first", activation="relu",
+                                         kernel_regularizer=regularizer)(net)
+        policy_net = keras.layers.Flatten()(policy_net)
+        policy_net = keras.layers.Dense(self.board.shape[0] * self.board.shape[1], activation="softmax",
+                                        kernel_regularizer=regularizer)(policy_net)
+        probs = probs = keras.layers.Reshape(self.board.shape)(policy_net)
+        # state value layers
+        value_net = keras.layers.Conv2D(filters=2, kernel_size=(1, 1), data_format="channels_first", activation="relu",
+                                        kernel_regularizer=regularizer)(net)
+        value_net = keras.layers.Flatten()(value_net)
+        value_net = keras.layers.Dense(64, kernel_regularizer=regularizer)(value_net)
+        vs = keras.layers.Dense(1, activation="tanh", kernel_regularizer=regularizer)(value_net)
         model = keras.Model(inputs=inputs, outputs=[probs, vs])
-
         loss = [self.categorical_crossentropy_2d, keras.losses.MSE]
         optimizer = keras.optimizers.Adam(learning_rate)
         model.compile(loss=loss, optimizer=optimizer)
         return model
+        # # 公共部分
+        # inputs = keras.Input(shape=self.input_shape)
+        # x = inputs
+        # # x = keras.layers.Reshape(self.board.shape + (1,))(inputs)
+        # for conv_filter in conv_filters:
+        #     z = keras.layers.Conv2D(conv_filter, 3, padding='same',
+        #                             kernel_regularizer=regularizer,
+        #                             bias_regularizer=regularizer)(x)
+        #     y = keras.layers.BatchNormalization()(z)
+        #     x = keras.layers.ReLU()(y)
+        # for residual_filter in residual_filters:
+        #     x = residual(x, filters=residual_filter, regularizer=regularizer)
+        # intermediates = x
+        #
+        # # 概率部分
+        # for policy_filter in policy_filters:
+        #     z = keras.layers.Conv2D(policy_filter, 3, padding='same',
+        #                             kernel_regularizer=regularizer,
+        #                             bias_regularizer=regularizer)(x)
+        #     y = keras.layers.BatchNormalization()(z)
+        #     x = keras.layers.ReLU()(y)
+        # logits = keras.layers.Conv2D(1, 3, padding='same',
+        #                              kernel_regularizer=regularizer, bias_regularizer=regularizer)(x)
+        # flattens = keras.layers.Flatten()(logits)
+        # softmaxs = keras.layers.Softmax()(flattens)
+        # probs = keras.layers.Reshape(self.board.shape)(softmaxs)
+        #
+        # # 价值部分
+        # z = keras.layers.Conv2D(1, 3, padding='same',
+        #                         kernel_regularizer=regularizer,
+        #                         bias_regularizer=regularizer)(intermediates)
+        # y = keras.layers.BatchNormalization()(z)
+        # x = keras.layers.ReLU()(y)
+        # flattens = keras.layers.Flatten()(x)
+        # vs = keras.layers.Dense(1, activation=keras.activations.tanh,
+        #                         kernel_regularizer=regularizer,
+        #                         bias_regularizer=regularizer)(flattens)
+        #
+        # model = keras.Model(inputs=inputs, outputs=[probs, vs])
+        #
+        # loss = [self.categorical_crossentropy_2d, keras.losses.MSE]
+        # optimizer = keras.optimizers.Adam(learning_rate)
+        # model.compile(loss=loss, optimizer=optimizer)
+        # return model
 
     def reset_mcts(self):
         def zero_board_factory():  # 用于构造 default_dict
@@ -142,13 +171,12 @@ class AlphaZeroAgent:
         self.valid = {}  # 有效位置: board -> board
         self.winner = {}  # 赢家: board -> None or int
 
-    def decide(self, observation, greedy=False, return_prob=False):
+    def decide(self, observation, last_action, greedy=False, return_prob=False):
         # 计算策略
         board, player = observation
-        canonical_board = player * board
-        s = boardenv.strfboard(canonical_board)
+        s = boardenv.strfboard(board)
         while self.count[s].sum() < self.sim_count:  # 多次 MCTS 搜索
-            self.search(canonical_board, prior_noise=True)
+            self.search(board, player, last_action, prior_noise=True)
         prob = self.count[s] / self.count[s].sum()
 
         # 采样
@@ -164,23 +192,23 @@ class AlphaZeroAgent:
             indices = np.random.choice(len(df), size=self.batch_size)
             players, boards, probs, winners = (np.stack(
                 df.loc[indices, field]) for field in df.columns)
-            canonical_boards = players[:, np.newaxis, np.newaxis] * boards
             vs = (players * winners)[:, np.newaxis]
-            self.net.fit(canonical_boards, [probs, vs], verbose=0)  # 训练
+            self.net.fit(boards, [probs, vs], verbose=0)  # 训练
         self.reset_mcts()
 
-    def search(self, board, prior_noise=False):  # MCTS 搜索
+    def search(self, board, player, last_action, prior_noise=False):  # MCTS 搜索
         s = boardenv.strfboard(board)
 
         if s not in self.winner:
-            self.winner[s] = self.env.get_winner((board, BLACK))  # 计算赢家
+            self.winner[s] = self.env.get_winner((board, player))  # 计算赢家
         if self.winner[s] is not None:  # 赢家确定的情况
             return self.winner[s]
 
         if s not in self.policy:  # 未计算过策略的叶子节点
-            pis, vs = self.net.predict(board[np.newaxis])
+            input = gobang.net_input(board, player, last_action)
+            pis, vs = self.net.predict(input[np.newaxis])
             pi, v = pis[0], vs[0]
-            valid = self.env.get_valid((board, BLACK))
+            valid = self.env.get_valid((board, player))
             masked_pi = pi * valid
             total_masked_pi = np.sum(masked_pi)
             if total_masked_pi <= 0:  # 所有的有效动作都没有概率，偶尔可能发生
@@ -209,11 +237,9 @@ class AlphaZeroAgent:
         location = np.unravel_index(location_index, board.shape)
 
         (next_board, next_player), _, _, _ = self.env.next_step(
-            (board, BLACK), np.array(location))
-        next_canonical_board = next_player * next_board
-        next_v = self.search(next_canonical_board)  # 递归搜索
-        v = next_player * next_v
-
+            (board, player), np.array(location))
+        next_v = self.search(next_board, next_player, location)  # 递归搜索
+        v = -next_v
         self.count[s][location] += 1
         self.q[s][location] += (v - self.q[s][location]) / \
                                self.count[s][location]
@@ -247,9 +273,10 @@ def self_play(env, agent, iteration, episode, return_trajectory=False, verbose=F
     trajectory = [] if return_trajectory else None
     observation = env.reset()
     winner = None
+    last_action = (env.board.shape[0] // 2, env.board.shape[1] // 2)
     for step in itertools.count():
         board, player = observation
-        action, prob = agent.decide(observation, return_prob=True)
+        action, prob = agent.decide(observation, last_action, return_prob=True)
         if verbose:
             env.render()
             logging.info(f'训练{iteration}，回合{episode}，第{step}步，玩家{player2str(player)}，动作{action}')
@@ -271,10 +298,6 @@ def self_play(env, agent, iteration, episode, return_trajectory=False, verbose=F
 
 
 def train_args(scale):
-    # train_iterations = 0
-    # train_episodes_per_iteration = 0
-    # batches = 0
-    # batch_size = 0
     train_iterations = 700000  # 训练迭代次数
     train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
     batches = 10  # 每回合进行几次批学习
@@ -300,31 +323,11 @@ def train_args(scale):
 
 def net_args(scale):
     net_kwargs = {}
-    sim_count = 800  # MCTS需要的计数
+    sim_count = 400  # MCTS需要的计数
     net_kwargs = {}
     net_kwargs['conv_filters'] = [256, ]
     net_kwargs['residual_filters'] = [[256, 256], ] * scale
     net_kwargs['policy_filters'] = [256, ]
-    # if scale == 'big':
-    #     """
-    #     AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
-    #     """
-    #     sim_count = 800  # MCTS需要的计数
-    #     net_kwargs = {}
-    #     net_kwargs['conv_filters'] = [256, ]
-    #     net_kwargs['residual_filters'] = [[256, 256], ] * 19
-    #     net_kwargs['policy_filters'] = [256, ]
-    #     net_scale = 'big'
-    # elif scale == 'small':
-    #     """
-    #     小规模参数，用来初步求解比较小的问题（如井字棋）
-    #     """
-    #     sim_count = 200
-    #     net_kwargs = {}
-    #     net_kwargs['conv_filters'] = [256, ]
-    #     net_kwargs['residual_filters'] = [[256, 256], ]
-    #     net_kwargs['policy_filters'] = [256, ]
-    #     net_scale = 'small'
     return sim_count, net_kwargs, scale
 
 
