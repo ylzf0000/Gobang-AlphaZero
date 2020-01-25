@@ -48,6 +48,19 @@ def extend_board(board):
     return boards
 
 
+# 获取8个镜像位置
+def extend_location(location, shape):
+    x, y = location
+    w, h = shape[0] - 1, shape[1] - 1
+    # locations = np.stack([location,
+    #                       np.rot90(board), np.rot90(board, k=2), np.rot90(board, k=3),
+    #                       np.transpose(board), np.flipud(board),
+    #                       np.rot90(np.flipud(board)), np.fliplr(board)])
+    locations = np.stack([(x, y), (y, w - x), (w - x, h - y), (h - y, x),
+                          (y, x), (x, h - y), (h - y, w - x), (w - x, y)])
+    return locations
+
+
 class BoardGameEnv(gym.Env):
     metadata = {"render.modes": ["ansi", "human"]}
 

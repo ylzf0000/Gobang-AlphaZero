@@ -189,11 +189,18 @@ class AlphaZeroAgent:
     def learn(self, dfs):
         df = pd.concat(dfs).reset_index(drop=True)
         for batch in range(self.batches):
-            indices = np.random.choice(len(df), size=self.batch_size)
-            players, boards, probs, winners = (np.stack(
+            sz = self.batch_size if len(df) > self.batch_size else len(df)
+            indices = np.random.choice(len(df), size=sz)
+            players, boards, actions, probs, winners = (np.stack(
                 df.loc[indices, field]) for field in df.columns)
-            vs = (players * winners)[:, np.newaxis]
-            self.net.fit(boards, [probs, vs], verbose=0)  # 训练
+            inputs = []
+            for i in range(len(players)):
+                board = boards[i]
+                player = players[i]
+                action = actions[i]
+                inputs.append(gobang.net_input(board, player, action))
+            vs = winners[:, np.newaxis]
+            self.net.fit(np.array(inputs), [probs, vs], verbose=0)  # 训练
         self.reset_mcts()
 
     def search(self, board, player, last_action, prior_noise=False):  # MCTS 搜索
@@ -248,21 +255,23 @@ class AlphaZeroAgent:
 
 def flip_trajectory(df_trajectory: pd.DataFrame):
     raw_trajectory = list(df_trajectory.values.tolist())
-    winner = raw_trajectory[0][3]
+    winner = raw_trajectory[0][4]
     trajectories = [[] for _ in range(8)]
     dfs_trajectory = []
     for row in raw_trajectory:
         player = row[0]
         board = row[1]
-        prob = row[2]
+        action = row[2]
+        prob = row[3]
         # winner = row[3]
         boards = extend_board(board)
+        actions = extend_location(action, board.shape)
         probs = extend_board(prob)
         for i in range(len(boards)):
-            trajectories[i].append((player, boards[i], probs[i]))
+            trajectories[i].append((player, boards[i], actions[i], probs[i]))
     for trajectory in trajectories:
         df = pd.DataFrame(trajectory,
-                          columns=['player', 'board', 'prob'])
+                          columns=['player', 'board', 'action', 'prob'])
         df['winner'] = winner
         dfs_trajectory.append(df)
     return dfs_trajectory
@@ -282,7 +291,7 @@ def self_play(env, agent, iteration, episode, return_trajectory=False, verbose=F
             logging.info(f'训练{iteration}，回合{episode}，第{step}步，玩家{player2str(player)}，动作{action}')
         observation, winner, done, _ = env.step(action)
         if return_trajectory:
-            trajectory.append((player, board, prob))
+            trajectory.append((player, board, action, prob))
         if done:
             if verbose:
                 env.render()
@@ -290,7 +299,7 @@ def self_play(env, agent, iteration, episode, return_trajectory=False, verbose=F
             break
     if return_trajectory:
         df_trajectory = pd.DataFrame(trajectory,
-                                     columns=['player', 'board', 'prob'])
+                                     columns=['player', 'board', 'action', 'prob'])
         df_trajectory['winner'] = winner
         return df_trajectory
     else:
@@ -298,10 +307,10 @@ def self_play(env, agent, iteration, episode, return_trajectory=False, verbose=F
 
 
 def train_args(scale):
-    train_iterations = 700000  # 训练迭代次数
-    train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
-    batches = 10  # 每回合进行几次批学习
-    batch_size = 4096  # 批学习的批大小
+    train_iterations = 1500000  # 训练迭代次数
+    train_episodes_per_iteration = 1  # 每次迭代自我对弈回合数
+    batches = 5  # 每回合进行几次批学习
+    batch_size = 512  # 批学习的批大小
     # if scale == 'big':
     #     """
     #     AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
@@ -323,7 +332,7 @@ def train_args(scale):
 
 def net_args(scale):
     net_kwargs = {}
-    sim_count = 400  # MCTS需要的计数
+    sim_count = 200  # MCTS需要的计数
     net_kwargs = {}
     net_kwargs['conv_filters'] = [256, ]
     net_kwargs['residual_filters'] = [[256, 256], ] * scale
@@ -351,10 +360,11 @@ def train(cmd, scale=7):
             dfs_trajectory += flip_trajectory(df_trajectory)
             # dfs_trajectory.append(df_trajectory)
 
-        # 利用经验进行学习
-        agent.learn(dfs_trajectory)
-        keras.models.save_model(agent.net, agent.model_filename)
-        logging.info(f'训练{iteration}: 学习完成')
+            # 利用经验进行学习
+            # if iteration > batch_size:
+            agent.learn(dfs_trajectory)
+            keras.models.save_model(agent.net, agent.model_filename)
+            logging.info(f'训练{iteration}: 学习完成')
 
         # 演示训练结果
         # self_play(env, agent, iteration, episode, verbose=True)
